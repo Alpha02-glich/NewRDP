@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Do you love me?</title>
+  <meta name="description" content="Cute yes/no page — made with ❤️ by Yash" />
+  <style>
+    :root{
+      --bg:#fff3f5; --card:#ffffff; --primary:#ff4d6d; --primary-2:#ff8fa3; --text:#222; --muted:#6b7280; --ring:rgba(255,77,109,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 10% 10%, #ffe9ee 0%, rgba(255,233,238,0) 60%),
+                  radial-gradient(1200px 600px at 90% 20%, #fff1f5 0%, rgba(255,241,245,0) 65%),
+                  var(--bg);
+      color:var(--text);
+      display:grid; place-items:center;
+    }
+    .card{
+      width:min(92vw,560px); background:var(--card); border-radius:22px; padding:28px 24px 32px;
+      box-shadow:0 20px 60px rgba(0,0,0,.12), 0 2px 10px rgba(0,0,0,.05);
+      position:relative; overflow:hidden;
+    }
+    h1{margin:0 0 6px; font-size:clamp(24px, 4vw, 32px); text-align:center}
+    p.tag{margin:0 0 18px; text-align:center; color:var(--muted)}
+
+    .buttons-area{ position:relative; height:220px; margin-top:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;}
+
+    button{
+      appearance:none; border:0; padding:12px 20px; border-radius:14px; font-weight:700; font-size:16px; cursor:pointer;
+      transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+      box-shadow:0 10px 20px rgba(0,0,0,.08);
+    }
+    button:focus{ outline:3px solid var(--ring); outline-offset:2px }
+    .yes{ background:linear-gradient(180deg, var(--primary), var(--primary-2)); color:#fff; position:relative; z-index:2 }
+    .yes:hover{ transform:translateY(-1px) scale(1.02) }
+    .no{ background:#f3f4f6; color:#111; position:relative; z-index:1 }
+    .no:hover{ transform:translateY(-1px) }
+
+    .result{ margin-top:10px; text-align:center; font-size:18px }
+
+    .overlay{ position:fixed; inset:0; display:none; place-items:center; background:rgba(255,255,255,.65); backdrop-filter:blur(2px); z-index:50 }
+    .overlay.show{ display:grid }
+    .modal{ background:#fff; border-radius:20px; padding:26px 22px; width:min(92vw,520px); text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.18); }
+    .modal h2{ margin:0 0 6px; font-size:clamp(22px,4vw,28px) }
+    .modal p{ margin:0; color:#374151 }
+
+    .hearts{ position:fixed; inset:0; pointer-events:none; z-index:60 }
+    .heart{ position:absolute; font-size:22px; animation:floatUp 2.6s ease-in forwards }
+    @keyframes floatUp{ 0%{ transform:translateY(0) scale(.9); opacity:0 } 10%{ opacity:1 } 100%{ transform:translateY(-140px) scale(1.6); opacity:0 } }
+
+    .footer{ margin-top:16px; text-align:center; color:var(--muted); font-size:13px }
+  </style>
+</head>
+<body>
+  <div class="card" role="region" aria-label="Ask her out">
+    <h1>DO you love me?</h1>
+    <p class="tag">~mai tera hi hoo</p>
+
+    <div class="buttons-area" id="arena">
+      <button class="no" id="noBtn" aria-label="No">No 😅</button>
+      <button class="yes" id="yesBtn" aria-label="Yes">Yes 💖</button>
+    </div>
+
+    <div class="result" id="result" aria-live="polite"></div>
+    <div class="footer">Made with ❤️ by <strong id="who">Yash</strong></div>
+  </div>
+
+  <div class="overlay" id="overlay" aria-hidden="true">
+    <div class="modal">
+      <h2>She said YES! 🎉</h2>
+      <p>Ab se main sirf tumhara ❤️</p>
+    </div>
+  </div>
+
+  <div class="hearts" id="hearts" aria-hidden="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script>
+    // Personalize name
+    document.getElementById('who').textContent = 'Yash';
+
+    const arena = document.getElementById('arena');
+    const yesBtn = document.getElementById('yesBtn');
+    const noBtn = document.getElementById('noBtn');
+    const result = document.getElementById('result');
+    const DEFAULT_MSG = 'Arre arre, itna ghabrao mat! 😄';
+    const overlay = document.getElementById('overlay');
+    const heartsLayer = document.getElementById('hearts');
+
+    // set default friendly message on load
+    result.textContent = DEFAULT_MSG;
+
+    let dodgeCount = 0;
+    let noClicks = 0; // after 2 clicks, enable dodge mode
+    let dodgeActive = false;
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+    function moveRandom(el, avoidEl){
+      const rect = arena.getBoundingClientRect();
+      const bw = el.offsetWidth, bh = el.offsetHeight;
+      const minGap = 12; // keep at least 12px gap from the other button
+      let left, top, tries = 0; const maxTries = 40;
+
+      function overlaps(l,t){
+        if(!avoidEl) return false;
+        const aL = l, aT = t, aR = l + bw, aB = t + bh;
+        const ob = avoidEl.getBoundingClientRect();
+        const oL = ob.left - rect.left, oT = ob.top - rect.top;
+        const oR = oL + avoidEl.offsetWidth, oB = oT + avoidEl.offsetHeight;
+        // if rectangles intersect within a min gap, treat as overlap
+        return !(aR + minGap < oL || aL - minGap > oR || aB + minGap < oT || aT - minGap > oB);
+      }
+
+      do{
+        left = rand(8, Math.max(8, rect.width - bw - 8));
+        top  = rand(8, Math.max(8, rect.height - bh - 8));
+      } while (overlaps(left, top) && ++tries < maxTries);
+
+      el.style.position = 'absolute';
+      el.style.left = left + 'px';
+      el.style.top  = top + 'px';
+      if (el === noBtn) el.style.zIndex = 1; // keep NO below YES just in case
+    }
+
+    function dodge(){
+      if(!dodgeActive) return; // only move when dodge mode is active
+      dodgeCount++;
+      moveRandom(noBtn, yesBtn);
+    }
+
+    // Interactions for NO
+    noBtn.addEventListener('mouseenter', ()=>{ if(dodgeActive) dodge(); });
+    noBtn.addEventListener('focus', ()=>{ if(dodgeActive) dodge(); });
+    noBtn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      noClicks++;
+      if(noClicks === 1){
+        result.textContent = 'Pakka? 🤔';
+      } else if(noClicks === 2){
+        result.textContent = 'Sacchi? Last chance! 😅';
+      } else {
+        // from 3rd click onwards, activate dodge and immediately move
+        dodgeActive = true;
+        result.textContent = 'Ab pakad ke dikhao! 😜';
+        dodge();
+      }
+    });
+
+    // Interactions for YES
+    yesBtn.addEventListener('click', ()=>{
+      yesBtn.disabled = true; noBtn.disabled = true;
+      result.textContent = '';
+      overlay.classList.add('show');
+      overlay.setAttribute('aria-hidden','false');
+
+      const end = Date.now() + 1500;
+      (function frame(){
+        confetti({ particleCount: 3, angle: 60, spread: 65, origin: { x: 0 } });
+        confetti({ particleCount: 3, angle: 120, spread: 65, origin: { x: 1 } });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      })();
+      confetti({ particleCount: 160, spread: 90, startVelocity: 45, scalar:.9 });
+
+      let hearts = 0; const maxHearts = 24;
+      const spawn = setInterval(()=>{
+        if(hearts >= maxHearts) return clearInterval(spawn);
+        const span = document.createElement('span');
+        span.className = 'heart';
+        span.textContent = ['💖','❤️','💕','💞','🩷'][rand(0,4)];
+        span.style.left = rand(10, 90) + 'vw';
+        span.style.bottom = rand(4, 18) + 'vh';
+        span.style.animationDuration = (1.8 + Math.random()*1.6) + 's';
+        heartsLayer.appendChild(span);
+        setTimeout(()=> span.remove(), 2800);
+        hearts++;
+      }, 90);
+
+      setTimeout(()=>{
+        overlay.classList.remove('show');
+        overlay.setAttribute('aria-hidden','true');
+      }, 3000);
+    });
+
+    // -----------------
+    // Lightweight Test Suite (runs only if ?test=1 in URL)
+    // -----------------
+    (function(){
+      const runTests = new URLSearchParams(location.search).get('test') === '1';
+      if(!runTests) return;
+      let failed = 0;
+      function assert(name, cond){
+        const ok = !!cond; if(!ok) failed++;
+        console.log(`[TEST] ${name}: ${ok ? 'PASS' : 'FAIL'}`);
+      }
+
+      // Test 1: Buttons exist
+      assert('Buttons exist', !!yesBtn && !!noBtn);
+
+      // Test 2: First two clicks do NOT activate dodge
+      // Test 0: Default message present on load
+      assert('Default message on load', result.textContent === DEFAULT_MSG);
+
+      noClicks = 0; dodgeActive = false; result.textContent = '';
+      noBtn.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+      assert('After 1st NO click, dodge inactive', !dodgeActive && noClicks === 1 && result.textContent.includes('Pakka'));
+      noBtn.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+      assert('After 2nd NO click, still inactive', !dodgeActive && noClicks === 2 && result.textContent.includes('Last chance'));
+
+      // Test 3: 3rd click enables dodge
+      noBtn.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+      assert('After 3rd NO click, dodge active', dodgeActive && noClicks === 3);
+
+      // Test 4: Overlap protection when moving NO randomly
+      function overlapsRect(a, b, gap=10){
+        const ar = a.getBoundingClientRect();
+        const br = b.getBoundingClientRect();
+        return !(ar.right + gap < br.left || ar.left - gap > br.right || ar.bottom + gap < br.top || ar.top - gap > br.bottom);
+      }
+      let anyOverlap = false;
+      for(let i=0;i<10;i++){
+        moveRandom(noBtn, yesBtn);
+        if(overlapsRect(noBtn, yesBtn, 10)) { anyOverlap = true; break; }
+      }
+      assert('Random moves avoid overlap', !anyOverlap);
+
+      console.log(`[TEST] ${failed===0? 'All tests passed' : failed+' test(s) failed'}`);
+    })();
+  </script>
+</body>
+</html>
